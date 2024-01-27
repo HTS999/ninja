@@ -49,6 +49,10 @@ nix = { version = "0.27.1", features = ["signal", "user", "ptrace"]}
 [target.'cfg(target_os = "linux")'.dependencies]
 sysctl = "0.5.4"
 
+[patch.crates-io]
+redb = { git = "https://github.com/gngpp/redb.git", branch = "master" }
+native_db = { git = "https://github.com/gngpp/native_db", branch = "main" }
+
 [dev-dependencies]
 futures-util = "0.3.28"
 serde_json = "1.0.107"
