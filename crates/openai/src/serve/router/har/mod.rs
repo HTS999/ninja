@@ -34,7 +34,7 @@ pub(super) fn config(router: Router, _: &Args) -> Router {
         .route("/har/delete", post(delete_file))
         .route("/har/rename", post(rename_file))
 }
-
+ 
 fn error_html(title: &str, error_message: &str, back: bool) -> Html<String> {
     let mut error = ERROR_PAGE
         .replace("{{.error}}", error_message)
@@ -118,7 +118,7 @@ async fn upload(jar: CookieJar) -> impl IntoResponse {
     Redirect::temporary(LOGIN_PATH).into_response()
 }
 
-/// Upload file
+/// Upload file 
 async fn post_upload(
     jar: CookieJar,
     _type: TypedHeader<PlatformType>,

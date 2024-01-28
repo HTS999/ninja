@@ -15,6 +15,7 @@ pub enum AuthStrategy {
     Apple,
     Web,
     Platform,
+    Abc,
 }
 
 impl Default for AuthStrategy {

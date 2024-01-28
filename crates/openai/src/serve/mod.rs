@@ -484,4 +484,24 @@ async fn check_wan_address() {
             warn!("Check IP request error: {}", err)
         }
     }
+    match with_context!( api_client)
+        .get("http://myip.ipip.net")
+        .timeout(Duration::from_secs(60))
+        .send()
+        .await
+    {
+        Ok(resp) => match resp.text().await {
+            Ok(res) => {
+                info!("What is my IP address3: {}", res.trim())
+            }
+            Err(err) => {
+                warn!("Check IP address error: {}", err.to_string())
+            }
+        },
+        Err(err) => {
+            warn!("Check IP request error: {}", err)
+        }
+    }
+
+
 }
