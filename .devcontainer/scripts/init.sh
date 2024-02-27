@@ -45,7 +45,6 @@ if [ "$REMOTE_CONTAINERS" = "true" ]; then
 
     #  安装前端依赖
     #cd frontend && yarn install && cd ..
-
     # 安装 rust up 直接enter 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     source ~/.cargo/env
