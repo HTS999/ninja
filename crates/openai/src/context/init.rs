@@ -1,6 +1,9 @@
 use super::{
     args::Args,
-    arkose::har::{HarProvider, HAR},
+    arkose::{
+        har::{HarProvider, HAR},
+        ArkoseVersionContext,
+    },
     preauth::PreauthCookieProvider,
     CfTurnstile, Context, CTX,
 };
@@ -34,10 +37,12 @@ fn init_context(args: Args) -> Context {
             .expect("Failed to initialize the requesting arkose client"),
         preauth_provider: args.pbind.is_some().then(|| PreauthCookieProvider::new()),
         arkose_endpoint: args.arkose_endpoint,
+        arkose_context: ArkoseVersionContext::new(),
         arkose_solver: args.arkose_solver,
-        arkose_har_upload_key: args.arkose_har_upload_key,
         arkose_gpt3_experiment: args.arkose_gpt3_experiment,
         arkose_gpt3_experiment_solver: args.arkose_gpt3_experiment_solver,
+        arkose_solver_tguess_endpoint: args.arkose_solver_tguess_endpoint,
+        arkose_solver_image_dir: args.arkose_solver_image_dir,
         enable_file_proxy: args.enable_file_proxy,
         auth_key: args.auth_key,
         visitor_email_whitelist: args.visitor_email_whitelist,
@@ -51,31 +56,19 @@ fn init_context(args: Args) -> Context {
 }
 
 fn init_har_provider(args: Args) -> HashMap<arkose::Type, HarProvider> {
-    let gpt3_har_provider = HarProvider::new(
-        arkose::Type::GPT3,
-        args.arkose_gpt3_har_dir.as_ref(),
-        "gpt3",
-    );
-    let gpt4_har_provider = HarProvider::new(
-        arkose::Type::GPT4,
-        args.arkose_gpt4_har_dir.as_ref(),
-        "gpt4",
-    );
-    let auth_har_provider = HarProvider::new(
-        arkose::Type::Auth,
-        args.arkose_auth_har_dir.as_ref(),
-        "auth",
-    );
+    let gpt3_har_provider =
+        HarProvider::new(arkose::Type::GPT3, args.arkose_har_dir.as_ref(), "gpt3");
+    let gpt4_har_provider =
+        HarProvider::new(arkose::Type::GPT4, args.arkose_har_dir.as_ref(), "gpt4");
+    let auth_har_provider =
+        HarProvider::new(arkose::Type::Auth, args.arkose_har_dir.as_ref(), "auth");
     let platform_har_provider = HarProvider::new(
         arkose::Type::Platform,
-        args.arkose_platform_har_dir.as_ref(),
+        args.arkose_har_dir.as_ref(),
         "platform",
     );
-    let signup_har_provider = HarProvider::new(
-        arkose::Type::SignUp,
-        args.arkose_platform_har_dir.as_ref(),
-        "signup",
-    );
+    let signup_har_provider =
+        HarProvider::new(arkose::Type::SignUp, args.arkose_har_dir.as_ref(), "signup");
 
     let mut har_map = HashMap::with_capacity(5);
     har_map.insert(arkose::Type::GPT3, gpt3_har_provider);

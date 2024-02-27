@@ -36,3 +36,5 @@ patch/.patch
 *.gz
 *.csv
 bx/
+images/
+serve.toml

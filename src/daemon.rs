@@ -25,7 +25,7 @@ pub(super) fn serve(mut args: ServeArgs, relative_path: bool) -> anyhow::Result<
         Some(client_key) => Some(ArkoseSolver::new(
             args.arkose_solver,
             client_key.clone(),
-            args.arkose_solver_url,
+            args.arkose_solver_endpoint,
             args.arkose_solver_limit,
         )),
         None => None,
@@ -69,16 +69,13 @@ pub(super) fn serve(mut args: ServeArgs, relative_path: bool) -> anyhow::Result<
         .visitor_email_whitelist(args.visitor_email_whitelist)
         .cf_site_key(args.cf_site_key)
         .cf_secret_key(args.cf_secret_key)
-        .disable_ui(args.disable_webui)
+        .enable_webui(args.enable_webui)
         .arkose_endpoint(args.arkose_endpoint)
-        .arkose_gpt3_har_dir(args.arkose_gpt3_har_dir)
-        .arkose_gpt4_har_dir(args.arkose_gpt4_har_dir)
-        .arkose_auth_har_dir(args.arkose_auth_har_dir)
-        .arkose_platform_har_dir(args.arkose_platform_har_dir)
         .arkose_gpt3_experiment(args.arkose_gpt3_experiment)
         .arkose_gpt3_experiment_solver(args.arkose_gpt3_experiment_solver)
-        .arkose_har_upload_key(args.arkose_har_upload_key)
         .arkose_solver(arkose_solver)
+        .arkose_solver_tguess_endpoint(args.arkose_solver_tguess_endpoint)
+        .arkose_solver_image_dir(args.arkose_solver_image_dir)
         .enable_file_proxy(args.enable_file_proxy)
         .enable_arkose_proxy(args.enable_arkose_proxy)
         .pbind(args.pbind)
@@ -154,10 +151,12 @@ pub(super) fn serve_start(mut args: ServeArgs) -> anyhow::Result<()> {
         .stderr(stderr) // Redirect stderr to `/tmp/daemon.err`.
         .privileged_action(|| "Executed before drop privileges");
 
-    if let Ok(Some(real_user)) = nix::unistd::User::from_name("root") {
-        daemonize = daemonize
-            .user(real_user.name.as_str())
-            .group(real_user.gid.as_raw());
+    if let Ok(user) = std::env::var("SUDO_USER") {
+        if let Ok(Some(real_user)) = nix::unistd::User::from_name(&user) {
+            daemonize = daemonize
+                .user(real_user.name.as_str())
+                .group(real_user.gid.as_raw());
+        }
     }
 
     fix_relative_path(&mut args);
@@ -286,6 +285,7 @@ pub(super) fn generate_template(out: Option<PathBuf>) -> anyhow::Result<()> {
         tb_expired: 86400,
         cookie_store: true,
         pool_idle_timeout: 90,
+        arkose_solver_limit: 3,
         level: "info".to_owned(),
         pcert: PathBuf::from("ca/cert.crt"),
         pkey: PathBuf::from("ca/key.pem"),

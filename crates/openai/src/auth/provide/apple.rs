@@ -6,7 +6,6 @@ use crate::auth::{
     OPENAI_OAUTH_REVOKE_URL, OPENAI_OAUTH_TOKEN_URL, OPENAI_OAUTH_URL,
 };
 use crate::{warn, with_context};
-use async_recursion::async_recursion;
 use axum::http::HeaderValue;
 use reqwest::Client;
 use url::Url;
@@ -23,6 +22,7 @@ const APPLE_CLIENT_ID: &str = "pdlLIX2Y72MIl2rhLhTE9VV9bN905kBh";
 const OPENAI_OAUTH_APPLE_CALLBACK_URL: &str =
     "com.openai.chat://auth0.openai.com/ios/com.openai.chat/callback";
 
+#[derive(Clone)]
 pub(crate) struct PreAuthProvider;
 
 impl PreAuthProvider {
@@ -31,19 +31,13 @@ impl PreAuthProvider {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct AppleAuthProvider {
-    inner: Client,
-    preauth_provider: PreAuthProvider,
+    pub inner: Client,
+    pub preauth_provider: PreAuthProvider,
 }
 
 impl AppleAuthProvider {
-    pub fn new(inner: Client) -> impl AuthProvider + Send + Sync {
-        Self {
-            inner,
-            preauth_provider: PreAuthProvider,
-        }
-    }
-
     async fn authorize(&self, ctx: &mut RequestContext<'_>) -> AuthResult<()> {
         // Get the preauth cookie.
         let preauth_cookie = self.preauth_provider.get_preauth_cookie()?;
@@ -199,7 +193,6 @@ impl AppleAuthProvider {
         Err(AuthError::FailedCallbackURL)
     }
 
-    #[async_recursion]
     async fn authenticate_mfa(
         &self,
         ctx: &mut RequestContext<'_>,
@@ -236,7 +229,33 @@ impl AppleAuthProvider {
             return Err(AuthError::MFAFailed);
         }
 
-        self.authenticate_resume(ctx, location).await
+        let resp = self
+            .inner
+            .get(&format!("{OPENAI_OAUTH_URL}{location}"))
+            .ext_context(ctx)
+            .send()
+            .await
+            .map_err(AuthError::FailedRequest)?
+            .ext_context(ctx);
+
+        // If resp status is client error return InvalidEmailOrPassword
+        if resp.status().is_client_error() {
+            return Err(AuthError::InvalidEmailOrPassword);
+        }
+
+        // maybe auth failed
+        let _ = AuthClient::check_auth_callback_state(resp.url())?;
+
+        // If get_location_path returns an error, it means that the location is invalid.
+        let location: &str = AuthClient::get_location_path(&resp.headers())?;
+
+        // Indicates successful login.
+        if location.starts_with(OPENAI_OAUTH_APPLE_CALLBACK_URL) {
+            return self.authorization_code(ctx, location).await;
+        }
+
+        // Return an error if the location is invalid.
+        Err(AuthError::FailedCallbackURL)
     }
 
     async fn authorization_code(
@@ -274,9 +293,8 @@ impl AppleAuthProvider {
     }
 }
 
-#[async_trait::async_trait]
 impl AuthProvider for AppleAuthProvider {
-    fn supports(&self, t: &AuthStrategy) -> bool {
+    fn support(&self, t: &AuthStrategy) -> bool {
         t.eq(&AuthStrategy::Apple)
     }
 
@@ -287,7 +305,7 @@ impl AuthProvider for AppleAuthProvider {
         let code_verifier = AuthClient::generate_code_verifier();
         let code_challenge = AuthClient::generate_code_challenge(&code_verifier);
 
-        let mut ctx = RequestContext::new(account, &self.inner);
+        let mut ctx = RequestContext::new(account);
         ctx.set_code_verifier(code_verifier);
         ctx.set_code_challenge(code_challenge);
 
@@ -317,11 +335,7 @@ impl AuthProvider for AppleAuthProvider {
             .send()
             .await?;
 
-        let mut token = AuthClient::response_handle::<model::RefreshToken>(resp).await?;
-        // Set the refresh token.
-        token.refresh_token = refresh_token.to_owned();
-
-        Ok(token)
+        Ok(AuthClient::response_handle::<model::RefreshToken>(resp).await?)
     }
 
     async fn do_revoke_token(&self, refresh_token: &str) -> AuthResult<()> {
